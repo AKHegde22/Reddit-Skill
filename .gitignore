@@ -1,0 +1,29 @@
+# Ignore cache directory contents but keep the directory
+/data/cache/*.json
+
+# Ignore local watchlist (use example as template)
+/data/watchlist.json
+
+# Node/Bun
+node_modules/
+.env
+.env.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun.lockb
+dist/
+build/
+coverage/
+
+# OS
+.DS_Store
+*.swp
+*.swo
+*~
+thumbs.db
+
+# Logs
+*.log
+logs/

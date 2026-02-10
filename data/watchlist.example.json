@@ -1,0 +1,14 @@
+{
+    "users": [
+        {
+            "username": "spez",
+            "note": "Reddit CEO",
+            "addedAt": "2026-02-10T00:00:00Z"
+        },
+        {
+            "username": "awildsketchappeared",
+            "note": "Famous Reddit artist",
+            "addedAt": "2026-02-10T00:00:00Z"
+        }
+    ]
+}

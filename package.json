@@ -1,0 +1,25 @@
+{
+    "name": "reddit-research",
+    "version": "1.0.0",
+    "description": "Reddit research CLI for AI agents",
+    "type": "module",
+    "main": "reddit-search.ts",
+    "scripts": {
+        "search": "bun run reddit-search.ts search",
+        "subreddit": "bun run reddit-search.ts subreddit",
+        "thread": "bun run reddit-search.ts thread",
+        "profile": "bun run reddit-search.ts profile"
+    },
+    "keywords": [
+        "reddit",
+        "research",
+        "cli",
+        "agent"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^25.2.2",
+        "bun-types": "^1.3.9"
+    }
+}
