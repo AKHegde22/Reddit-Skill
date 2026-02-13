@@ -1,13 +1,14 @@
 /**
- * Reddit API wrapper — search, subreddits, threads, profiles
- * Uses OAuth2 authentication with Reddit credentials from env
- */
+* Reddit API wrapper — search, subreddits, threads, profiles
+* Uses OAuth2 authentication with Reddit credentials from env
+*/
 
 import { readFileSync } from "fs";
 
-const BASE = "https://oauth.reddit.com";
+const BASE_OAUTH = "https://oauth.reddit.com";
+const BASE_PUBLIC = "https://www.reddit.com";
 const AUTH_BASE = "https://www.reddit.com/api/v1";
-const RATE_DELAY_MS = 600; // 100 QPM = 600ms between requests
+const RATE_DELAY_MS = 1000; // Slower for safety (especially unauthenticated)
 
 let accessToken: string | null = null;
 let tokenExpiry: number = 0;
@@ -24,28 +25,29 @@ function getCredentials(): {
     clientSecret: string;
     username: string;
     password: string;
-} {
+} | null {
     const clientId = process.env.REDDIT_CLIENT_ID;
     const clientSecret = process.env.REDDIT_CLIENT_SECRET;
     const username = process.env.REDDIT_USERNAME;
     const password = process.env.REDDIT_PASSWORD;
 
     if (!clientId || !clientSecret || !username || !password) {
-        throw new Error(
-            "Missing Reddit credentials. Set REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME, REDDIT_PASSWORD"
-        );
+        return null; // Public mode
     }
 
     return { clientId, clientSecret, username, password };
 }
 
-async function getToken(): Promise<string> {
+async function getToken(): Promise<string | null> {
+    const creds = getCredentials();
+    if (!creds) return null;
+
     // Return cached token if still valid (with 5min buffer)
     if (accessToken && Date.now() < tokenExpiry - 5 * 60 * 1000) {
         return accessToken;
     }
 
-    const { clientId, clientSecret, username, password } = getCredentials();
+    const { clientId, clientSecret, username, password } = creds;
 
     const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString(
         "base64"
@@ -68,15 +70,15 @@ async function getToken(): Promise<string> {
     });
 
     if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`OAuth2 authentication failed: ${error}`);
+        console.warn("⚠️ OAuth2 failed, falling back to public API:", await response.text());
+        return null;
     }
 
     const data = (await response.json()) as TokenResponse;
     accessToken = data.access_token;
     tokenExpiry = Date.now() + data.expires_in * 1000;
 
-    return accessToken!;
+    return accessToken;
 }
 
 function sleep(ms: number) {
@@ -170,17 +172,42 @@ function parseComment(raw: any, depth: number = 0): Comment {
 
 async function apiGet(endpoint: string): Promise<any> {
     const token = await getToken();
+    const isPublic = !token;
 
-    const response = await fetch(`${BASE}${endpoint}`, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-            "User-Agent": "reddit-research-skill/1.0",
-        },
-    });
+    const baseUrl = isPublic ? BASE_PUBLIC : BASE_OAUTH;
+
+    // For public API, we need to ensure .json is appended correctly
+    // Most endpoints in reddit-search are like /r/name/sort or /search
+    // We need to inject .json before the query string
+    let fetchUrl = endpoint;
+    if (isPublic) {
+        const [path, query] = endpoint.split("?");
+        // Avoid double .json if somehow present
+        const jsonPath = path.endsWith(".json") ? path : `${path}.json`;
+        fetchUrl = query ? `${jsonPath}?${query}` : jsonPath;
+    }
+
+    const url = `${baseUrl}${fetchUrl}`;
+
+    const headers: any = {
+        "User-Agent": "reddit-research-cli/1.0",
+    };
+
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { headers });
 
     if (!response.ok) {
+        if (response.status === 429) {
+            throw new Error("Rate limited (429). Try again later.");
+        }
+        if (response.status === 403) {
+            throw new Error("Access denied (403). Private subreddit or banned?");
+        }
         const error = await response.text();
-        throw new Error(`Reddit API error: ${response.status} ${error}`);
+        throw new Error(`Reddit API error (${isPublic ? "Public" : "OAuth"}): ${response.status} ${error}`);
     }
 
     await sleep(RATE_DELAY_MS); // Rate limiting
